@@ -3,7 +3,7 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
 
 # Homework 2 {-}
-
+#Peter, Dec, Mad, Jonah
 <center>
 **Due Friday, February 18 at 9:00am CST on [Moodle](https://moodle.macalester.edu/mod/assign/view.php?id=36784)**
 </center>
