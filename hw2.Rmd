@@ -3,7 +3,6 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
 
 # Homework 2 {-}
-
 <center>
 **Due Friday, February 18 at 9:00am CST on [Moodle](https://moodle.macalester.edu/mod/assign/view.php?id=36784)**
 </center>
@@ -15,6 +14,8 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 
 
 <br><br><br>
+
+
 
 
 
@@ -53,13 +54,24 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 
 #### Your Work {-}
 
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+tidymodels_prefer()
+```
+
 a & b.
 
 ```{r}
 # library statements 
 # read in data
 
+season_data = read.csv("understat.com.csv")
 
+season_data %>%
+  ggplot(aes(x = pts))
 ```
 
 ```{r}
