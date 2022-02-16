@@ -13,7 +13,6 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed.
 
 
-
 <br><br><br>
 
 
@@ -57,9 +56,15 @@ a & b.
 
 ```{r}
 # library statements 
+library(dplyr)
+library(readr)
+library(broom)
+library(ggplot2)
+library(tidymodels) 
+tidymodels_prefer() 
+
 # read in data
-
-
+data = read_csv("understat.com.csv")
 ```
 
 ```{r}
