@@ -3,7 +3,6 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
 
 # Homework 2 {-}
-#Peter, Dec, Mad, Jonah
 <center>
 **Due Friday, February 18 at 9:00am CST on [Moodle](https://moodle.macalester.edu/mod/assign/view.php?id=36784)**
 </center>
@@ -15,6 +14,8 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 
 
 <br><br><br>
+
+
 
 
 
@@ -53,32 +54,54 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 
 #### Your Work {-}
 
+
+
 a & b.
 
 ```{r}
 # library statements 
-# read in data
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+tidymodels_prefer()
 
+<<<<<<< HEAD
+=======
+# read in data
+season_data = read.csv("understat.com.csv")
+
+>>>>>>> ab17a761af37e533b9738acfa8a0fdf331da476c
 ```
 
 ```{r}
 # data cleaning
+colnames(season_data)[9] = "goals"
+colnames(season_data)[10] = "conceded"
 
+drop = c("X", "X.1", "position", "team", "matches", "draws", "loses", "goals", "xG_diff", "xGA_diff", "xpts", "xpts_diff")
+season_data_clean = season_data[!colnames(season_data) %in% drop]
 ```
 
 ```{r}
 # creation of cv folds
-
+set.seed(123)
+season_data_clean <- vfold_cv(season_data_clean, v = 9)
 ```
 
 ```{r}
 # model spec
-
+lm_spec <- 
+    linear_reg() %>% # this is the type of model we are fitting
+    set_engine(engine = 'lm') %>% # you'll learn other engines to fit the model
+    set_mode('regression') 
 ```
 
 ```{r}
 # recipes & workflows
-
+model_wf <- workflow() %>%
+  add_formula(fatSiri ~ age+weight+neck+abdomen+thigh+forearm) %>%
+  add_model(lm_spec)
 ```
 
 ```{r}
