@@ -1,3 +1,5 @@
+Jonah, Declan, Madelyn, Peter
+
 ```{r hw2_setup, include=FALSE}
 knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
@@ -78,7 +80,7 @@ season_data = read.csv("understat.com.csv")
 colnames(season_data)[9] = "goals"
 colnames(season_data)[10] = "conceded"
 
-drop = c("X", "X.1", "position", "team", "matches", "draws", "loses", "goals", "xG_diff", "xGA_diff", "xpts", "xpts_diff")
+drop = c("X", "X.1", "position", "team", "matches", "draws", "loses", "goals", "xG_diff", "xGA_diff", "xpts", "xpts_diff", "wins")
 season_data_clean = season_data[!colnames(season_data) %in% drop]
 ```
 
