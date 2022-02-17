@@ -70,7 +70,6 @@ tidymodels_prefer()
 library(mosaic)
 library(glmnet)
 
-#test for jonah
 
 
 
@@ -87,15 +86,17 @@ colnames(player_data) = player_data[1,]
 colnames(player_data)[20:24] = paste(colnames(player_data)[20:24], "/90")
 colnames(player_data)[29:33] = paste(colnames(player_data)[29:33], "/90")
 player_data = subset(player_data, Rk!="Rk")
-
+View(player_data)
 ```
 
 ```{r}
+
+season_data <- read_csv('understat.com.csv')
 # data cleaning
 colnames(season_data)[9] = "goals"
 colnames(season_data)[10] = "conceded"
 
-drop = c("X", "X.1", "position", "team", "matches", "draws", "loses", "goals", "xG_diff", "xGA_diff", "xpts", "xpts_diff", "wins")
+drop = c("X", "X.1", "position", "team", "matches", "draws", "loses", "xpts", "xpts_diff", "wins", "...1", "...2", "goals", "conceded")
 season_data_clean = season_data[!colnames(season_data) %in% drop]
 ```
 
@@ -116,7 +117,7 @@ lm_spec <-
 
 lm_lasso_spec <- 
   linear_reg()%>%
-  set_args(mixture = 1, penalty = 0)%>%
+  set_args(mixture = 1, penalty = tune())%>%
   set_engine(engine = 'glmnet')%>%
   set_mode('regression')
 ```
@@ -136,21 +137,75 @@ season_rec_LASSO <-
   recipe(pts ~ ., data = season_data_clean) %>%
   step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
   step_nzv(all_numeric_predictors())%>%#remove predictors with near zero variablility
-  step_normalize(all_numeric_predictors()) #normalize all predictors 
+  step_normalize(all_numeric_predictors())%>%#normalize all predictors 
+  step_corr(all_numeric_predictors())
 
-LASSO_wf_season <- workflow()%>%
-  add_recipe(season_rec_LASSO)%>%
-  add_model(lm_lasso_spec)
+
+# Lasso Model Spec with tune
+lm_lasso_spec_tune <- 
+  linear_reg() %>%
+  set_args(mixture = 1, penalty = tune()) %>% ## mixture = 1 indicates Lasso
+  set_engine(engine = 'glmnet') %>% #note we are using a different engine
+  set_mode('regression') 
+
 ```
+
+
+
 
 ```{r}
 # fit & tune models
-fit_resamples(season_model_wf, 
+
+# Workflow (Recipe + Model)
+lasso_wf_tune <- workflow() %>% 
+  add_recipe(season_rec_LASSO) %>%
+  add_model(lm_lasso_spec_tune) 
+
+# Tune Model (trying a variety of values of Lambda penalty)
+penalty_grid <- grid_regular(
+  penalty(range = c(-5, 3)), #log10 transformed 
+  levels = 30)
+
+tune_output <- tune_grid( # new function for tuning hyperparameters
+  lasso_wf_tune, # workflow
+  resamples = season_CV9, # cv folds
+  metrics = metric_set(rmse, mae),
+  grid = penalty_grid # penalty grid defined above
+)
+
+
+autoplot(tune_output)+theme_classic()
+
+Season_CV_metrics
+
+```
+
+c.
+
+```{r}
+#  calculate/collect CV metrics
+Season_CV_metrics <-fit_resamples(season_model_wf, 
     resamples = season_CV9, 
     metrics = metric_set(rmse, rsq, mae)
     ) %>%
     collect_metrics(summarize = TRUE) #CV Metrics (averages over the 10 folds)
 
+Season_CV_metrics
+
+#LASSO metrics
+best_se_penalty <- select_by_one_std_err(tune_output, metric = 'mae', desc(penalty))
+
+final_wf<- finalize_workflow(lasso_wf_tune, best_se_penalty)
+
+final_fit <- fit(final_wf, data = season_data_clean)
+
+tidy(final_fit)
+
+```
+
+
+```{r}
+#SUSPECT CODE
 #fit lasso model
 lasso_fit_season <- LASSO_wf_season %>%
   fit(data = season_data_clean)
@@ -159,21 +214,42 @@ tidy(lasso_fit_season)
 
 plot(lasso_fit_season %>% extract_fit_parsnip() %>% pluck('fit'), # way to get the original glmnet output
      xvar = "lambda") # glmnet fits the model with a variety of lambda penalty values
-
 ```
 
-c.
-
-```{r}
-#  calculate/collect CV metrics
-
-```
-
- 
 d.
 
 ```{r}
 # visual residuals
+season_CV_mod <- fit(season_model_wf, data = season_data_clean)
+
+season_CV_modoutput <- season_data_clean%>%
+  bind_cols(predict(season_CV_mod, new_data = season_data_clean))%>%
+  mutate(resid = pts - .pred)
+
+ggplot(season_CV_modoutput, aes(x = pts, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+
+ggplot(season_CV_modoutput, aes(x = xG, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_hline(yintercept = 0, color = 'red')+
+  theme_classic()
+
+ggplot(season_CV_modoutput, aes(x = ppda_coef, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_hline(yintercept = 0, color = 'red')+
+  theme_classic()
+
+ggplot(season_CV_modoutput, aes(x = xG_diff, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_hline(yintercept = 0, color = 'red')+
+  theme_classic()
+
 
 ```
 
