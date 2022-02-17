@@ -65,13 +65,11 @@ library(ggplot2)
 library(dplyr)
 library(tidymodels)
 tidymodels_prefer()
+library(mosaic)
 
-<<<<<<< HEAD
-=======
+
 # read in data
 season_data = read.csv("understat.com.csv")
-
->>>>>>> ab17a761af37e533b9738acfa8a0fdf331da476c
 ```
 
 ```{r}
@@ -86,7 +84,7 @@ season_data_clean = season_data[!colnames(season_data) %in% drop]
 ```{r}
 # creation of cv folds
 set.seed(123)
-season_data_clean <- vfold_cv(season_data_clean, v = 9)
+season_CV9 <- vfold_cv(season_data_clean, v = 9)
 ```
 
 ```{r}
@@ -99,13 +97,22 @@ lm_spec <-
 
 ```{r}
 # recipes & workflows
-model_wf <- workflow() %>%
-  add_formula(fatSiri ~ age+weight+neck+abdomen+thigh+forearm) %>%
+season_rec <- recipe(pts ~ ., data = season_data_clean) %>%
+  step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
+  step_nzv(all_numeric_predictors()) #remove predictors with near zero variablility
+
+season_model_wf <- workflow() %>%
+  add_recipe(season_rec)%>%
   add_model(lm_spec)
 ```
 
 ```{r}
 # fit & tune models
+fit_resamples(season_model_wf, 
+    resamples = season_CV9, 
+    metrics = metric_set(rmse, rsq, mae)
+    ) %>%
+    collect_metrics(summarize = TRUE) #CV Metrics (averages over the 10 folds)
 
 ```
 
