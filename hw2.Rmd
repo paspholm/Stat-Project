@@ -21,7 +21,6 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 
 
 
-
 ## Project Work {-}
 
 ### Instructions {-} 
