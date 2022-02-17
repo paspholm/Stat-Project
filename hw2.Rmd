@@ -65,13 +65,27 @@ library(readr)
 library(ggplot2)
 library(dplyr)
 library(tidymodels)
+library(rvest)
 tidymodels_prefer()
 library(mosaic)
 library(glmnet)
 
 
-# read in data
-season_data = read.csv("understat.com.csv")
+
+url <- "https://widgets.sports-reference.com/wg.fcgi?css=1&site=fb&url=%2Fen%2Fcomps%2FBig5%2Fstats%2Fplayers%2FBig-5-European-Leagues-Stats&div=div_stats_standard"
+
+player_data <- url %>% 
+     xml2::read_html() %>%
+     rvest::html_nodes('table') %>%
+     html_table() %>%
+     .[[1]]
+
+colnames(player_data) = player_data[1,]
+
+colnames(player_data)[20:24] = paste(colnames(player_data)[20:24], "/90")
+colnames(player_data)[29:33] = paste(colnames(player_data)[29:33], "/90")
+player_data = subset(player_data, Rk!="Rk")
+
 ```
 
 ```{r}
