@@ -1,9 +1,19 @@
 Jonah, Declan, Madelyn, Peter
 
 ```{r hw2_setup, include=FALSE}
-knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo=TRUE, eval=TRUE)
 ```
 
+
+---
+title: "Homework 2"
+output:
+  html_document:
+    toc: true
+    fig_caption: true
+    
+NAMES: Jonah, Declan, Madelyn, Peter
+---
 # Homework 2 {-}
 <center>
 **Due Friday, February 18 at 9:00am CST on [Moodle](https://moodle.macalester.edu/mod/assign/view.php?id=36784)**
@@ -69,28 +79,9 @@ library(rvest)
 tidymodels_prefer()
 library(mosaic)
 library(glmnet)
-
-
-
-
-url <- "https://widgets.sports-reference.com/wg.fcgi?css=1&site=fb&url=%2Fen%2Fcomps%2FBig5%2Fstats%2Fplayers%2FBig-5-European-Leagues-Stats&div=div_stats_standard"
-
-player_data <- url %>% 
-     xml2::read_html() %>%
-     rvest::html_nodes('table') %>%
-     html_table() %>%
-     .[[1]]
-
-colnames(player_data) = player_data[1,]
-
-colnames(player_data)[20:24] = paste(colnames(player_data)[20:24], "/90")
-colnames(player_data)[29:33] = paste(colnames(player_data)[29:33], "/90")
-player_data = subset(player_data, Rk!="Rk")
-View(player_data)
 ```
 
 ```{r}
-
 season_data <- read_csv('understat.com.csv')
 # data cleaning
 colnames(season_data)[9] = "goals"
@@ -173,10 +164,7 @@ tune_output <- tune_grid( # new function for tuning hyperparameters
   grid = penalty_grid # penalty grid defined above
 )
 
-
 autoplot(tune_output)+theme_classic()
-
-Season_CV_metrics
 
 ```
 
@@ -201,25 +189,16 @@ final_fit <- fit(final_wf, data = season_data_clean)
 
 tidy(final_fit)
 
-```
 
 
-```{r}
-#SUSPECT CODE
-#fit lasso model
-lasso_fit_season <- LASSO_wf_season %>%
-  fit(data = season_data_clean)
-
-tidy(lasso_fit_season)
-
-plot(lasso_fit_season %>% extract_fit_parsnip() %>% pluck('fit'), # way to get the original glmnet output
-     xvar = "lambda") # glmnet fits the model with a variety of lambda penalty values
 ```
 
 d.
 
 ```{r}
 # visual residuals
+
+#OLS Residuals
 season_CV_mod <- fit(season_model_wf, data = season_data_clean)
 
 season_CV_modoutput <- season_data_clean%>%
@@ -249,7 +228,41 @@ ggplot(season_CV_modoutput, aes(x = xG_diff, y = resid))+
   geom_smooth(method = 'lm')+
   geom_hline(yintercept = 0, color = 'red')+
   theme_classic()
+```
 
+```{r}
+#Lasso Residuals
+
+season_LASSO_MOD_output <- season_data_clean%>%
+  bind_cols(predict(final_fit, new_data = season_data_clean))%>%
+  mutate(resid = pts - .pred)
+
+season_LASSO_MOD_output %>%
+  rsq(truth = pts, estimate = .pred)
+
+ggplot(season_LASSO_MOD_output, aes(x = pts, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+
+ggplot(season_LASSO_MOD_output, aes(x = xG, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_hline(yintercept = 0, color = 'red')+
+  theme_classic()
+
+ggplot(season_LASSO_MOD_output, aes(x = ppda_coef, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_hline(yintercept = 0, color = 'red')+
+  theme_classic()
+
+ggplot(season_LASSO_MOD_output, aes(x = xG_diff, y = resid))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  geom_hline(yintercept = 0, color = 'red')+
+  theme_classic()
 
 ```
 
@@ -259,8 +272,8 @@ e.
 
 2. **Summarize investigations**
     - Decide on an overall best model based on your investigations so far. To do this, make clear your analysis goals. Predictive accuracy? Interpretability? A combination of both?
-
-
+    We would use the lasso model with a penalty of 0.4893901. This model included the variables of xG, xGA, xG_diff, npXGA and ppda_coef. This makes sense because teams that score more goals and create better chances to score are more likely to be better. The r-squared was 0.896, which was marginally higher than the OLS method where all predictors were used. We found that OLS was slightly more accurate in predicting pts, with a MAE of 4.3 as opposed to the LASSO MAE of 4.5. LASSO is more interpretable because it uses fewer variables and eliminates the variables that contribute little explanation in the model. LASSO is also much less likely to be overfit because it uses a more general strategy for model creation. 
+    
 
 <br>
 
