@@ -66,6 +66,7 @@ library(dplyr)
 library(tidymodels)
 tidymodels_prefer()
 library(mosaic)
+library(glmnet)
 
 
 # read in data
@@ -88,22 +89,41 @@ season_CV9 <- vfold_cv(season_data_clean, v = 9)
 ```
 
 ```{r}
-# model spec
+# OLS model
 lm_spec <- 
     linear_reg() %>% # this is the type of model we are fitting
     set_engine(engine = 'lm') %>% # you'll learn other engines to fit the model
     set_mode('regression') 
+
+#lasso model
+
+lm_lasso_spec <- 
+  linear_reg()%>%
+  set_args(mixture = 1, penalty = 0)%>%
+  set_engine(engine = 'glmnet')%>%
+  set_mode('regression')
 ```
 
 ```{r}
-# recipes & workflows
+# recipes & workflows OLS
 season_rec <- recipe(pts ~ ., data = season_data_clean) %>%
   step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
-  step_nzv(all_numeric_predictors()) #remove predictors with near zero variablility
+  step_nzv(all_numeric_predictors())#remove predictors with near zero variablility
 
 season_model_wf <- workflow() %>%
   add_recipe(season_rec)%>%
   add_model(lm_spec)
+
+#recipe and workflow for LASSO
+season_rec_LASSO <-
+  recipe(pts ~ ., data = season_data_clean) %>%
+  step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
+  step_nzv(all_numeric_predictors())%>%#remove predictors with near zero variablility
+  step_normalize(all_numeric_predictors()) #normalize all predictors 
+
+LASSO_wf_season <- workflow()%>%
+  add_recipe(season_rec_LASSO)%>%
+  add_model(lm_lasso_spec)
 ```
 
 ```{r}
@@ -113,6 +133,15 @@ fit_resamples(season_model_wf,
     metrics = metric_set(rmse, rsq, mae)
     ) %>%
     collect_metrics(summarize = TRUE) #CV Metrics (averages over the 10 folds)
+
+#fit lasso model
+lasso_fit_season <- LASSO_wf_season %>%
+  fit(data = season_data_clean)
+
+tidy(lasso_fit_season)
+
+plot(lasso_fit_season %>% extract_fit_parsnip() %>% pluck('fit'), # way to get the original glmnet output
+     xvar = "lambda") # glmnet fits the model with a variety of lambda penalty values
 
 ```
 
