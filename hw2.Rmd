@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 Jonah, Declan, Madelyn, Peter
 
 ```{r hw2_setup, include=FALSE}
@@ -79,6 +84,22 @@ library(rvest)
 tidymodels_prefer()
 library(mosaic)
 library(glmnet)
+```
+
+```{r}
+url <- "https://widgets.sports-reference.com/wg.fcgi?css=1&site=fb&url=%2Fen%2Fcomps%2FBig5%2Fstats%2Fplayers%2FBig-5-European-Leagues-Stats&div=div_stats_standard"
+
+player_data <- url %>% 
+     xml2::read_html() %>%
+     rvest::html_nodes('table') %>%
+     html_table() %>%
+     .[[1]]
+
+colnames(player_data) = player_data[1,]
+
+colnames(player_data)[20:24] = paste(colnames(player_data)[20:24], "/90")
+colnames(player_data)[29:33] = paste(colnames(player_data)[29:33], "/90")
+player_data = subset(player_data, Rk!="Rk")
 ```
 
 ```{r}
@@ -280,3 +301,6 @@ e.
 3. **Societal impact**
     - Are there any harms that may come from your analyses and/or how the data were collected?
     - What cautions do you want to keep in mind when communicating your work?
+    
+  One major harm that we identified in our analysis is the fact that the majority of our indicators are offensive statistics. Many teams play a defensive style, with the goal of not conceding goals. These teams score less goals, but also give up less goals. Because of the lack of offensive production, our model may underpredict the amount of points the defensive teams score. We also need to be careful and realize we are doing analysis on the top 5 European leagues. There are many different styles of play and many different leagues around the world. So what we see in these leagues may not occur in the many other leagues. 
+  When communicating our work we need to keep in mind the fact that many people do not know much about soccer, especially European soccer. We need to be able to find away that everyone will understand what we are trying to present. 
