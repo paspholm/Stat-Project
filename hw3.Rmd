@@ -41,6 +41,15 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 
 **Data cleaning:** If your dataset requires any cleaning (e.g., merging datasets, creation of new variables), first consult the [R Resources page](r-resources.html) to see if your questions are answered there. If not, post on the #rcode-questions channel in our Slack workspace to ask for help. *Please ask for help early and regularly* to avoid stressful workloads.
 
+```{r}
+pitching = read.csv("stats.csv")
+
+
+pitching.clean = pitching %>%
+  select(-c(118:139)) 
+```
+
+
 <br>
 
 
