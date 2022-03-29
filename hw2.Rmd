@@ -126,7 +126,6 @@ lm_spec <-
     set_mode('regression') 
 
 #lasso model
-
 lm_lasso_spec <- 
   linear_reg()%>%
   set_args(mixture = 1, penalty = tune())%>%
@@ -161,9 +160,6 @@ lm_lasso_spec_tune <-
   set_mode('regression') 
 
 ```
-
-
-
 
 ```{r}
 # fit & tune models
