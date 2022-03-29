@@ -19,7 +19,7 @@ library(glmnet)
 
 # Reseach Question
 
-Using pitch metrics to predict strikeout per 9 inning percentage
+Using pitch metrics to predict strikeout percentage
 
 ```{r}
 pitching = read.csv("stats.csv")
@@ -31,4 +31,17 @@ pitching_clean = pitching %>%
   
 pitching_clean[is.na(pitching_clean)]<- 0
 ```
+
+# Logistic Regression
+
+```{r}
+pitching_clean = pitching_clean %>%
+  mutate(over10kperc = ifelse(p_k_percent > 25, 1, 0))
+```
+
+
+
+
+
+
 
