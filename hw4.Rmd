@@ -19,7 +19,7 @@ library(glmnet)
 
 # Reseach Question
 
-Using pitch metrics to predict 
+Using pitch metrics to predict strikeout per 9 inning percentage
 
 ```{r}
 pitching = read.csv("stats.csv")
