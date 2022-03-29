@@ -3,26 +3,88 @@ title: "hw4"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
+
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+library(rvest)
+tidymodels_prefer()
+library(mosaic)
+library(glmnet)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Reseach Question
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Using pitch metrics to predict strikeout percentage
 
-```{r cars}
-summary(cars)
+```{r}
+pitching = read.csv("stats.csv")
+
+
+pitching_clean = pitching %>%
+  select(-c(118:139))
+  
+  
+pitching_clean[is.na(pitching_clean)]<- 0
+
+pitching_clean = pitching_clean %>%
+  mutate(over25kperc = factor(ifelse(p_k_percent > 25, 1, 0)))
+
+pitching_clean = pitching_clean[c(1,2,61:118)]
+pitching_clean = pitching_clean %>%
+  select(!contains("formatted"))
 ```
 
-## Including Plots
+# Logistic Regression
 
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+```{r}
+set.seed(69)
+
+pitching_cv11 = vfold_cv(pitching_clean, v = 11)
+
+# model specification
+logistic_lasso_spec_tune = logistic_reg() %>%
+  set_engine("glmnet") %>%
+  set_args(mixture = 1, penalty = tune()) %>%
+  set_mode('classification')
+
+# recipe
+logistic_rec = recipe(over25kperc ~ ., data = pitching_clean[-c(1,2)]) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors())
+
+# workflow
+log_lasso_wf = workflow() %>%
+  add_recipe(logistic_rec) %>%
+  add_model(logistic_lasso_spec_tune)
+
+# Tune Model
+penalty_grid = grid_regular(
+  penalty(range = c(-5, -2)), 
+  levels = 30
+)
+
+tune_output = tune_grid(
+  log_lasso_wf,
+  resamples = pitching_cv11,
+  metrics = metric_set(roc_auc),
+  control = control_resamples(save_pred = TRUE, event_level = "second"),
+  grid = penalty_grid
+)
+
+autoplot(tune_output) + theme_classic()
+
+best_se_penalty = select_by_one_std_err(tune_output, metric = "roc_auc", desc(penalty))
+
+best_se_penalty
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
