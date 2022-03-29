@@ -45,9 +45,97 @@ Alternatively, you may knit your Rmd directly to PDF if you have LaTeX installed
 pitching = read.csv("stats.csv")
 
 
-pitching.clean = pitching %>%
-  select(-c(118:139)) 
+pitching_clean = pitching %>%
+  select(-c(118:139))
+  
+  
+pitching_clean[is.na(pitching_clean)]<- 0
 ```
+
+```{r}
+set.seed(123)
+pitching_cv_11 <- vfold_cv(pitching_clean, v = 11)
+```
+
+```{r}
+#ols 
+lm_spec <- 
+    linear_reg() %>% # this is the type of model we are fitting
+    set_engine(engine = 'lm') %>% # you'll learn other engines to fit the model
+    set_mode('regression') 
+
+#lasso model
+lm_lasso_spec <- 
+  linear_reg()%>%
+  set_args(mixture = 1, penalty = tune())%>%
+  set_engine(engine = 'glmnet')%>%
+  set_mode('regression')
+```
+
+```{r}
+# recipes & workflows OLS
+season_rec <- recipe(p_k_percent ~ ., data = pitching_clean) %>%
+  step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
+  step_nzv(all_numeric_predictors())#remove predictors with near zero variablility
+
+season_model_wf <- workflow() %>%
+  add_recipe(season_rec)%>%
+  add_model(lm_spec)
+
+#recipe and workflow for LASSO
+season_rec_LASSO <-
+  recipe(p_k_percent ~ ., data = pitching_clean) %>%
+  step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
+  step_nzv(all_numeric_predictors())%>%#remove predictors with near zero variablility
+  step_normalize(all_numeric_predictors())%>%#normalize all predictors 
+  step_corr(all_numeric_predictors())
+
+
+# Lasso Model Spec with tune
+lm_lasso_spec_tune <- 
+  linear_reg() %>%
+  set_args(mixture = 1, penalty = tune()) %>% ## mixture = 1 indicates Lasso
+  set_engine(engine = 'glmnet') %>% #note we are using a different engine
+  set_mode('regression') 
+```
+
+
+```{r}
+# fit & tune models
+
+# Workflow (Recipe + Model)
+lasso_wf_tune <- workflow() %>% 
+  add_recipe(season_rec_LASSO) %>%
+  add_model(lm_lasso_spec_tune) 
+
+# Tune Model (trying a variety of values of Lambda penalty)
+penalty_grid <- grid_regular(
+  penalty(range = c(-5, 3)), #log10 transformed 
+  levels = 30)
+
+tune_output <- tune_grid( # new function for tuning hyperparameters
+  lasso_wf_tune, # workflow
+  resamples = pitching_cv_11, # cv folds
+  metrics = metric_set(rmse, mae),
+  grid = penalty_grid # penalty grid defined above
+)
+
+autoplot(tune_output)
++theme_classic()
+```
+
+```{r}
+#  calculate/collect CV metrics
+Season_CV_metrics <-fit_resamples(season_model_wf, 
+    resamples = pitching_cv_11, 
+    metrics = metric_set(rmse, rsq, mae)
+    ) %>%
+    collect_metrics(summarize = TRUE) #CV Metrics (averages over the 10 folds)
+
+Season_CV_metrics
+```
+
+
 
 
 <br>

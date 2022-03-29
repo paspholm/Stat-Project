@@ -1,0 +1,34 @@
+---
+title: "hw4"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
+
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+library(rvest)
+tidymodels_prefer()
+library(mosaic)
+library(glmnet)
+```
+
+
+# Reseach Question
+
+Using pitch metrics to predict 
+
+```{r}
+pitching = read.csv("stats.csv")
+
+
+pitching_clean = pitching %>%
+  select(-c(118:139))
+  
+  
+pitching_clean[is.na(pitching_clean)]<- 0
+```
+
