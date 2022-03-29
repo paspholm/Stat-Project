@@ -36,7 +36,7 @@ pitching_clean[is.na(pitching_clean)]<- 0
 
 ```{r}
 pitching_clean = pitching_clean %>%
-  mutate(over10kperc = ifelse(p_k_percent > 25, 1, 0))
+  mutate(over25kperc = ifelse(p_k_percent > 25, 1, 0))
 ```
 
 
