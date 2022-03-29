@@ -30,17 +30,22 @@ pitching_clean = pitching %>%
   
   
 pitching_clean[is.na(pitching_clean)]<- 0
+
+
+pitching_clean = pitching_clean[c(61:117)]
+pitching_clean = pitching_clean %>%
+  select(!contains("formatted"))
+
 ```
 
 # Logistic Regression
 
 ```{r}
 pitching_clean = pitching_clean %>%
-  mutate(over25kperc = ifelse(p_k_percent > 25, 1, 0))
+  mutate(over25kperc = factor(ifelse(p_k_percent > 25, 1, 0)))
+
+
 ```
-
-
-
 
 
 
