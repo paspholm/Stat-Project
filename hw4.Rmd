@@ -36,7 +36,8 @@ pitching_clean = pitching_clean %>%
 
 pitching_clean = pitching_clean[c(1,2,61:118)]
 pitching_clean = pitching_clean %>%
-  select(!contains("formatted"))
+  select(!contains("formatted"))%>%
+  select(!contains("range"))
 ```
 
 # Logistic Regression
@@ -84,6 +85,54 @@ best_se_penalty = select_by_one_std_err(tune_output, metric = "roc_auc", desc(pe
 
 best_se_penalty
 ```
+
+
+
+```{r}
+#final fit
+final_fit_se = finalize_workflow(log_lasso_wf, best_se_penalty)%>%
+  fit(data = pitching_clean)
+
+tidy(final_fit_se)
+```
+
+```{r}
+tune_output%>% 
+  collect_metrics()%>%
+  filter(penalty == best_se_penalty %>%pull(penalty))
+
+pitching_clean%>%
+  count(over25kperc)
+
+logistic_output <-  pitching_clean %>%
+  bind_cols(predict(final_fit_se, new_data = pitching_clean, type = 'prob')) 
+
+logistic_output%>%
+  ggplot(aes(y = .pred_1, x = over25kperc))+
+  geom_boxplot()+theme_classic()
+
+
+```
+
+```{r}
+#hard predicitons
+logistic_output %>%
+  ggplot(aes(x = over25kperc, y = .pred_0))+
+  geom_boxplot()+
+  geom_hline(yintercept = 0.5, col = "red")+
+  theme_classic()
+
+
+
+```
+
+
+
+
+
+
+
+
 
 
 
