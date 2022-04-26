@@ -144,7 +144,7 @@ logistic_output %>%
   theme_classic()
 
 logistic_output<-logistic_output%>%
-  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .69))
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .67))
   
 head(logistic_output)
 
@@ -153,6 +153,29 @@ logistic_output%>%
 
 logistic_output %>%
   conf_mat(truth = over25kperc, estimate = .pred_class)
+
+log_metrics <- metric_set(accuracy, sens, yardstick::spec)
+
+logistic_output %>%
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold= 0.67))%>%
+  log_metrics(truth = over25kperc, estimate = .pred_class, event_level = 'second')
+
+logistic_output %>%
+  roc_curve(over25kperc, .pred_0, event_level = 'second')%>%
+  autoplot()
+
+threshold_output <- logistic_output %>%
+  threshold_perf(truth = over25kperc, estimate = .pred_0, threshold = seq(0,1, by=0.01))
+
+threshold_output %>%
+  filter(.metric == "j_index")%>%
+  ggplot(aes(x = .threshold, y = .estimate))+
+  geom_line()+
+  theme_classic()
+
+threshold_output%>%
+  filter(.metric == 'j_index')%>%
+  arrange(desc(.estimate))
 ```
 
 # Decision Trees/ Random Forests
