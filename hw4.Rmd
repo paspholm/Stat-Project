@@ -21,7 +21,7 @@ library(glmnet)
 
 Using pitch metrics to predict strikeout percentage
 
-```{r}
+```{r, eval=FALSE}
 pitching = read.csv("stats.csv")
 
 
@@ -33,10 +33,14 @@ pitching_clean = pitching %>%
   mutate(over25kperc = factor(ifelse(p_k_percent > 25, 1, 0))) %>%
   select(-c(1))
 
-save(pitching_clean, file = "pitching_clean.rdata")
+# save(pitching_clean, file = "pitching_clean.rdata")
 
+```
+
+```{r}
 load("pitching_clean.rdata")
 ```
+
 
 # Logistic Regression
 
@@ -120,7 +124,7 @@ var_imp_data %>% arrange(desc(var_imp))
 ```{r}
 tune_output%>% 
   collect_metrics()%>%
-  filter(penalty == best_se_penalty %>%pull(penalty))
+  filter(penalty == best_se_penalty %> %pull(penalty))
 
 pitching_clean%>%
   count(over25kperc)
@@ -135,6 +139,8 @@ logistic_output%>%
 
 ```
 
+
+
 ```{r}
 #hard predicitons
 logistic_output %>%
@@ -144,7 +150,7 @@ logistic_output %>%
   theme_classic()
 
 logistic_output<-logistic_output%>%
-  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .69))
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .67))
   
 head(logistic_output)
 
@@ -153,7 +159,33 @@ logistic_output%>%
 
 logistic_output %>%
   conf_mat(truth = over25kperc, estimate = .pred_class)
+
+log_metrics <- metric_set(accuracy, sens, yardstick::spec)
+
+logistic_output %>%
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold= 0.67))%>%
+  log_metrics(truth = over25kperc, estimate = .pred_class, event_level = 'second')
+
+logistic_output %>%
+  roc_curve(over25kperc, .pred_0, event_level = 'second')%>%
+  autoplot()
+
+threshold_output <- logistic_output %>%
+  threshold_perf(truth = over25kperc, estimate = .pred_0, threshold = seq(0,1, by=0.01))
+
+threshold_output %>%
+  filter(.metric == "j_index")%>%
+  ggplot(aes(x = .threshold, y = .estimate))+
+  geom_line()+
+  theme_classic()
+
+threshold_output%>%
+  filter(.metric == 'j_index')%>%
+  arrange(desc(.estimate))
 ```
+
+
+
 
 # Decision Trees/ Random Forests
 ```{r}
@@ -176,6 +208,7 @@ data_rec <- recipe(over25kperc ~ ., data = pitching_clean)
 data_wf_mtry10 <- workflow() %>%
   add_model(rf_spec %>% set_args(mtry = 10))%>%
   add_recipe(data_rec)
+
 ```
 
 ```{r}
