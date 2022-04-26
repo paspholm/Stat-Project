@@ -18,28 +18,10 @@ library(mosaic)
 library(glmnet)
 library(vip)
 conflicted::conflict_prefer("vi", "vip")
+load("pitching_clean.rdata")
+
 ```
 
-```{r}
-pitching = read.csv("stats.csv")
-
-
-pitching_clean = pitching %>%
-  select(-c(118:139))
-  
-  
-pitching_clean[is.na(pitching_clean)]<- 0
-
-pitching_clean = pitching_clean %>%
-  mutate(over25kperc = factor(ifelse(p_k_percent > 25, 1, 0)))
-
-
-pitching_clean = pitching_clean[c(1,2,7,61:118)]
-pitching_clean = pitching_clean %>%
-  select(!contains("formatted"))
-
-pitching_clean_rf <- subset(pitching_clean, select = -c(1:4))
-```
 
 ```{r}
 set.seed(123)
@@ -55,18 +37,18 @@ rf_spec <- rand_forest()%>%
   set_mode('classification')
 
 #recipe
-data_rec <- recipe(over25kperc ~ ., data = pitching_clean_rf)
+data_rec <- recipe(over25kperc ~ ., data = pitching_clean)
 
 #workflows
-data_wf_mtry10 <- workflow() %>%
-  add_model(rf_spec %>% set_args(mtry = 10))%>%
+data_wf_mtry5 <- workflow() %>%
+  add_model(rf_spec %>% set_args(mtry = 5))%>%
   add_recipe(data_rec)
 ```
 
 ```{r}
 # fit model
 set.seed(123)
-data_fit_mtry10 <- fit(data_wf_mtry10, data = pitching_clean_rf)
+data_fit_mtry5 <- fit(data_wf_mtry5, data = pitching_clean)
 
 rf_OOB_output <- function(fit_model, model_label, truth){
   tibble(
@@ -78,32 +60,32 @@ rf_OOB_output <- function(fit_model, model_label, truth){
 }
 
 #check the output
-rf_OOB_output(data_fit_mtry10,data_fit_mtry10$over25kperc, pitching_clean_rf %>% pull(over25kperc))
+rf_OOB_output(data_fit_mtry5,data_fit_mtry5$over25kperc, pitching_clean %>% pull(over25kperc))
 
 # Evaluate OOB Metrics
 data_rf_OOB_output <- bind_rows(
-    rf_OOB_output(data_fit_mtry10,data_fit_mtry10$over25kperc, pitching_clean_rf %>% pull(over25kperc)))
+    rf_OOB_output(data_fit_mtry5,data_fit_mtry5$over25kperc, pitching_clean %>% pull(over25kperc)))
 
 data_rf_OOB_output %>% 
   accuracy(truth = class, estimate = .pred_class) 
 ```
 ```{r}
 data_fit_mtry10
-rf_OOB_output(data_fit_mtry10, data_fit_mtry10$over25kperc, pitching_clean_rf %>% pull(over25kperc)) %>%
+rf_OOB_output(data_fit_mtry5, data_fit_mtry5$over25kperc, pitching_clean %>% pull(over25kperc)) %>%
   conf_mat(truth = class, estimate = .pred_class)
 
-sensitivity = 77/(77+48)
-specificity = 266/(266+16)
+sensitivity = 74/(74+34)
+specificity = 201/(201+14)
 sensitivity
 specificity
 ```
-Our sensitivity is .616 and our specificity is .943. Therefore, our model is better at predicting when pitchers are below a 25% strikeout rate than above a 25% strikeout rate - it is better at predicting true negatives than true positives. We think this might be happening because pitchers that have a strikeout rate above 25% are very hard to come by - they are a somewhat elite group, even though the statistic is only slightly above the mlb average. Additionally, our data does not include relief pitchers, who tend to rely more on striking batters out than starting pitchers, who might rely on generating ground balls and soft contact.
+Our sensitivity is .685 and our specificity is .934. Therefore, our model is better at predicting when pitchers are below a 25% strikeout rate than above a 25% strikeout rate - it is better at predicting true negatives than true positives. We think this might be happening because pitchers that have a strikeout rate above 25% are very hard to come by - they are a somewhat elite group, even though the statistic is only slightly above the mlb average. Additionally, our data does not include relief pitchers, who tend to rely more on striking batters out than starting pitchers, who might rely on generating ground balls and soft contact.
 
 ```{r}
 # evaluate predictor performance based on permutation
-model_output <- data_wf_mtry10 %>% 
+model_output <- data_wf_mtry5 %>% 
   update_model(rf_spec %>% set_args(importance = "permutation")) %>% #based on permutation
-  fit(data = pitching_clean_rf) %>% 
+  fit(data = pitching_clean) %>% 
     extract_fit_engine() 
 
 model_output %>% 
