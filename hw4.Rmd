@@ -28,7 +28,6 @@ pitching = read.csv("stats.csv")
 pitching_clean = pitching %>%
   select(c(1,2,7,34,35,36,118:138)) %>%
   drop_na() %>%
-  mutate(name = paste(first_name, last_name, " ")) %>%
   select(-c(1,2)) %>%
   select(!contains("formatted")) %>%
   mutate(over25kperc = factor(ifelse(p_k_percent > 25, 1, 0))) %>%
@@ -53,7 +52,7 @@ logistic_lasso_spec_tune = logistic_reg() %>%
   set_mode('classification')
 
 # recipe
-logistic_rec = recipe(over25kperc ~ ., data = pitching_clean[-c(22)]) %>%
+logistic_rec = recipe(over25kperc ~ ., data = pitching_clean) %>%
   step_normalize(all_numeric_predictors()) %>%
   step_dummy(all_nominal_predictors())
 
@@ -171,7 +170,7 @@ rf_spec <- rand_forest()%>%
   set_mode('classification')
 
 #recipe
-data_rec <- recipe(over25kperc ~ ., data = pitching_clean_rf)
+data_rec <- recipe(over25kperc ~ ., data = pitching_clean)
 
 #workflows
 data_wf_mtry10 <- workflow() %>%
