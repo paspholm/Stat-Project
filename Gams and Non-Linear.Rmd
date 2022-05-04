@@ -7,22 +7,46 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r}
+# Library statements
+library(dplyr)
+library(readr)
+library(broom)
+library(ggplot2)
+library(tidymodels)
+tidymodels_prefer()
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+pitching1 = read.csv("stats.csv")
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+pitching_classclean <- pitching1 %>%
+  select(c(1,2,7,34,35,36,118:138)) %>%
+  select(-c(1,2)) %>%
+  select(!contains("formatted")) %>%
+  drop_na()
 ```
 
-## Including Plots
+```{r}
+gam_spec <-
+  gen_additive_mod() %>%
+  set_engine(engine = 'mgcv') %>%
+  set_mode('regression')
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+fit_gam_model <- gam_spec %>%
+  fit(p_k_percent ~ s(pitch_count_offspeed) + s(pitch_count_fastball) + s(pitch_count_breaking) + s(fastball_avg_speed) + s(fastball_avg_spin) + s(fastball_avg_break_x) + s(fastball_avg_break_z) + s(fastball_avg_break) + s(fastball_range_speed) + s(offspeed_avg_speed) + s(offspeed_avg_spin) + s(offspeed_avg_break_x) + s(offspeed_avg_break_z) + s(offspeed_avg_break) + s(offspeed_range_speed) + s(breaking_avg_speed) + s(breaking_avg_spin) + s(breaking_avg_break_x) + s(breaking_avg_break_z) + s(breaking_avg_break) + s(breaking_range_speed), data = pitching_classclean)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+# check to see if number of knots is good
+par(mfrow=c(2,2))
+fit_gam_model %>% pluck('fit') %>% mgcv::gam.check()
+# I think this is good based on the in-class activity
+
+# summary
+fit_gam_model %>% pluck('fit') %>% summary()
+```
+Non-significant Coefficients: pcoff, pcfb, fbavgspd, fbavgbrkx, offavgspin, anything breaking - can be fixed
+
+```{r}
+fit_gam_model %>% pluck('fit') %>% plot( all.terms = TRUE, pages = 2)
+```
