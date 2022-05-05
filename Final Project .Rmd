@@ -222,7 +222,7 @@ From this point, we think that testing nonlinear or classification model to decr
 
 ## GAMS and Splines 
 
-## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
+## Logistic Regression: Question: can we predict strikeout percentage with pitching metrics?  
 
 
 ```{r}
@@ -336,7 +336,8 @@ logistic_output %>%
 ```
 
 
-##Descision Trees/Random Forests 
+##Descision Trees/Random Forests
+### Question: Predciting Strikeout precentage over 25% with random forests and decsions trees. 
 
 ```{r}
 set.seed(123)
@@ -384,6 +385,7 @@ data_rf_OOB_output <- bind_rows(
 data_rf_OOB_output %>% 
   accuracy(truth = class, estimate = .pred_class) 
 ```
+These outputs are showing the predicted outcomes compared to the actual ones. And an accuracy reading of .85 for the random forest. Since our accuracy is 85% that means we are predicting whether a strike out percentage is above 25% or below 25% with an 85% accuracy. 
 
 ```{r}
 data_fit_mtry5
