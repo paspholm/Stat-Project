@@ -48,5 +48,5 @@ fit_gam_model %>% pluck('fit') %>% summary()
 Non-significant Coefficients: pcoff, pcfb, fbavgspd, fbavgbrkx, offavgspin, anything breaking - can be fixed
 
 ```{r}
-fit_gam_model %>% pluck('fit') %>% plot( all.terms = TRUE, pages = 2)
+fit_gam_model %>% pluck('fit') %>% plot( all.terms = TRUE, pages = 3)
 ```
