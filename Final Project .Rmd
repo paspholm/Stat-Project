@@ -340,28 +340,6 @@ logistic_output%>%
 ```
 We can see the boxplots of our predictions for pitchers over and under 25% strikeout rate. There are a few outliers in the no column, meaning that there is a small group that does not strikeout many batters despite having metrics on their pitches that indicate a high strikeout rate. This could be due many factors, such as poor location, playing in a hitter friendly environment or pitch selection and game calling. 
 
-
-```{r}
-#hard predicitons
-logistic_output %>%
-  ggplot(aes(x = over25kperc, y = .pred_0))+
-  geom_boxplot()+
-  geom_hline(yintercept = 0.69, col = "red")+
-  theme_classic()
-
-logistic_output<-logistic_output%>%
-  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .69))
-  
-head(logistic_output)
-
-logistic_output%>%
-  count(over25kperc, .pred_class)
-
-logistic_output %>%
-  conf_mat(truth = over25kperc, estimate = .pred_class)
-```
-
-
 <<<<<<< HEAD
 ```{r}
 #hard predicitons
