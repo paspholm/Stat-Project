@@ -1,0 +1,273 @@
+---
+title: "Final Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+library(rvest)
+tidymodels_prefer()
+library(mosaic)
+library(glmnet)
+library(probably)
+library(vip)
+conflicted::conflict_prefer("vi", "vip")
+
+load("pitching_clean.rdata")
+```
+
+## LASSO OLS Model 
+
+
+```{r}
+set.seed(123)
+pitching_cv_11 <- vfold_cv(pitching_clean, v = 11)
+```
+
+```{r}
+#ols  
+lm_spec <- 
+    linear_reg() %>% # this is the type of model we are fitting
+    set_engine(engine = 'lm') %>% # you'll learn other engines to fit the model
+    set_mode('regression') 
+
+#lasso model
+lm_lasso_spec <- 
+  linear_reg()%>%
+  set_args(mixture = 1, penalty = tune())%>%
+  set_engine(engine = 'glmnet')%>%
+  set_mode('regression')
+```
+
+```{r}
+# recipes & workflows OLS
+season_rec <- recipe(p_k_percent ~ ., data = pitching_clean) %>%
+  step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
+  step_nzv(all_numeric_predictors())#remove predictors with near zero variablility
+
+season_model_wf <- workflow() %>%
+  add_recipe(season_rec)%>%
+  add_model(lm_spec)
+
+#recipe and workflow for LASSO
+season_rec_LASSO <-
+  recipe(p_k_percent ~ ., data = pitching_clean) %>%
+  step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
+  step_nzv(all_numeric_predictors())%>%#remove predictors with near zero variablility
+  step_normalize(all_numeric_predictors())%>%#normalize all predictors 
+  step_corr(all_numeric_predictors())
+
+
+# Lasso Model Spec with tune
+lm_lasso_spec_tune <- 
+  linear_reg() %>%
+  set_args(mixture = 1, penalty = tune()) %>% ## mixture = 1 indicates Lasso
+  set_engine(engine = 'glmnet') %>% #note we are using a different engine
+  set_mode('regression') 
+```
+
+
+```{r}
+# fit & tune models
+
+# Workflow (Recipe + Model)
+lasso_wf_tune <- workflow() %>% 
+  add_recipe(season_rec_LASSO) %>%
+  add_model(lm_lasso_spec_tune) 
+
+# Tune Model (trying a variety of values of Lambda penalty)
+penalty_grid <- grid_regular(
+  penalty(range = c(-5, 3)), #log10 transformed 
+  levels = 30)
+
+tune_output <- tune_grid( # new function for tuning hyperparameters
+  lasso_wf_tune, # workflow
+  resamples = pitching_cv_11, # cv folds
+  metrics = metric_set(rmse, mae),
+  grid = penalty_grid # penalty grid defined above
+)
+
+autoplot(tune_output) ### this isn't working 
++theme_classic()
+```
+
+```{r}
+#  calculate/collect CV metrics
+Season_CV_metrics <-fit_resamples(season_model_wf, 
+    resamples = pitching_cv_11, 
+    metrics = metric_set(rmse, rsq, mae)
+    ) %>%
+    collect_metrics(summarize = TRUE) #CV Metrics (averages over the 10 folds)
+
+Season_CV_metrics
+```
+
+## GAMS and Splines NEED TO DO 
+## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
+
+
+```{r}
+set.seed(69)
+
+pitching_cv11 = vfold_cv(pitching_clean, v = 11)
+
+# model specification
+logistic_lasso_spec_tune = logistic_reg() %>%
+  set_engine("glmnet") %>%
+  set_args(mixture = 1, penalty = tune()) %>%
+  set_mode('classification')
+
+# recipe
+logistic_rec = recipe(over25kperc ~ ., data = pitching_clean[-c(1,2)]) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors())
+
+# workflow
+log_lasso_wf = workflow() %>%
+  add_recipe(logistic_rec) %>%
+  add_model(logistic_lasso_spec_tune)
+
+# Tune Model
+penalty_grid = grid_regular(
+  penalty(range = c(-5, -2)), 
+  levels = 30
+)
+
+tune_output = tune_grid(
+  log_lasso_wf,
+  resamples = pitching_cv11,
+  metrics = metric_set(roc_auc),
+  control = control_resamples(save_pred = TRUE, event_level = "second"),
+  grid = penalty_grid
+)
+
+autoplot(tune_output) + theme_classic()
+
+best_se_penalty = select_by_one_std_err(tune_output, metric = "roc_auc", desc(penalty))
+
+best_se_penalty
+```
+
+```{r}
+#final fit
+final_fit_se = finalize_workflow(log_lasso_wf, best_se_penalty)%>%
+  fit(data = pitching_clean)
+
+tidy(final_fit_se)
+```
+
+```{r}
+#variable importance 
+
+glmnet_output <- final_fit_se %>% extract_fit_engine()
+    
+# Create a boolean matrix (predictors x lambdas) of variable exclusion
+bool_predictor_exclude <- glmnet_output$beta==0
+
+# Loop over each variable
+var_imp <- sapply(seq_len(nrow(bool_predictor_exclude)), function(row) {
+    this_coeff_path <- bool_predictor_exclude[row,]
+    if(mosaic::sum(this_coeff_path) == ncol(bool_predictor_exclude)){ return(0)}else{
+    return(ncol(bool_predictor_exclude) - which.min(this_coeff_path) + 1)}
+})
+
+# Create a dataset of this information and sort
+var_imp_data <- tibble(
+    var_name = rownames(bool_predictor_exclude),
+    var_imp = var_imp
+)
+var_imp_data %>% arrange(desc(var_imp))
+```
+
+```{r}
+tune_output%>% 
+  collect_metrics()%>%
+  filter(penalty == best_se_penalty %>%pull(penalty))
+
+pitching_clean%>%
+  count(over25kperc)
+
+logistic_output <-  pitching_clean %>%
+  bind_cols(predict(final_fit_se, new_data = pitching_clean, type = 'prob')) 
+
+logistic_output%>%
+  ggplot(aes(y = .pred_1, x = over25kperc))+
+  geom_boxplot()+theme_classic()
+
+```
+
+```{r}
+#hard predicitons
+logistic_output %>%
+  ggplot(aes(x = over25kperc, y = .pred_0))+
+  geom_boxplot()+
+  geom_hline(yintercept = 0.69, col = "red")+
+  theme_classic()
+
+logistic_output<-logistic_output%>%
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .69))
+  
+head(logistic_output)
+
+logistic_output%>%
+  count(over25kperc, .pred_class)
+
+logistic_output %>%
+  conf_mat(truth = over25kperc, estimate = .pred_class)
+```
+
+
+##Descision Trees/Random Forests 
+```{r}
+# Decision Trees/ Random Forests
+set.seed(123)
+
+#model specification
+rf_spec <- rand_forest()%>%
+  set_engine(engine = 'ranger') %>%
+  set_args(mtry = NULL,
+           trees = 500, #Number of trees
+           min_n = 2, #minimum number of points in a leaf?
+           probability = FALSE,
+           importance = 'impurity') %>%
+  set_mode('classification')
+
+#recipe
+data_rec <- recipe(over25kperc ~ ., data = pitching_clean_rf)
+
+#workflows
+data_wf_mtry10 <- workflow() %>%
+  add_model(rf_spec %>% set_args(mtry = 10))%>%
+  add_recipe(data_rec)
+```
+
+```{r}
+# fit model
+set.seed(123)
+data_fit_mtry10 <- fit(data_wf_mtry10, data = pitching_clean_rf)
+
+rf_OOB_output <- function(fit_model, model_label, truth){
+  tibble(
+    .pred_class = fit_model %>% extract_fit_engine() %>% pluck('predictions'), 
+    class = truth,
+    label = model_label
+  
+  )
+}
+
+#check the output
+rf_OOB_output(data_fit_mtry10,data_fit_mtry10$over25kperc, pitching_clean_rf %>% pull(over25kperc))
+
+# Evaluate OOB Metrics
+data_rf_OOB_output <- bind_rows(
+    rf_OOB_output(data_fit_mtry10,data_fit_mtry10$over25kperc, pitching_clean_rf %>% pull(over25kperc)))
+
+data_rf_OOB_output %>% 
+  accuracy(truth = class, estimate = .pred_class) 
+```
+
+## Clustering 
