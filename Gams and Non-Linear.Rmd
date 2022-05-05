@@ -62,7 +62,7 @@ lm_spec <-
  set_mode('regression')
 
 set.seed(34) 
-data_cv17 <- pitching_data%>%
+data_cv17 <- pitching_data %>%
  vfold_cv(v = 17)
 
 pitching_rec <- recipe(p_k_percent ~ pitch_count_offspeed+ pitch_count_fastball + pitch_count_breaking + fastball_avg_speed + fastball_avg_spin + fastball_avg_break_x + fastball_avg_break_z + fastball_avg_break + fastball_range_speed + offspeed_avg_speed + offspeed_avg_spin + offspeed_avg_break_x + offspeed_avg_break_z + offspeed_avg_break + offspeed_range_speed + breaking_avg_speed + breaking_avg_spin + breaking_avg_break_x + breaking_avg_break_z + breaking_avg_break + breaking_range_speed, data=pitching_data)
@@ -70,7 +70,7 @@ pitching_rec <- recipe(p_k_percent ~ pitch_count_offspeed+ pitch_count_fastball 
 # for all variables with edf over 3 we put them into our model as a spline 
 spline_rec <- pitching_rec %>% 
   step_ns(fastball_avg_break_x, deg_free = 5)%>%
-  step_ns(fastvall_avg_break_z, deg_free=4)%>% 
+  step_ns(fastball_avg_break_z, deg_free=4)%>% 
   step_ns(offspeed_avg_break_x, deg_free=4)%>% 
   step_ns(offspeed_range_speed, deg_free=4)%>% 
   step_ns(breaking_range_speed,deg_free=4)
