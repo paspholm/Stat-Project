@@ -15,6 +15,7 @@ library(broom)
 library(ggplot2)
 library(tidymodels)
 tidymodels_prefer()
+library(tibble)
 
 pitching1 = read.csv("stats.csv")
 
@@ -73,7 +74,7 @@ spline_rec <- pitching_rec %>%
   step_ns(fastvall_avg_break_z, deg_free=4)%>% 
   step_ns(offspeed_avg_break_x, deg_free=4)%>% 
   step_ns(offspeed_range_speed, deg_free=4)%>% 
-  step_ns(breaking_range_speed,deg_free=4)
+  step_ns(breaking_range_speed, deg_free=4)
 
 pitching_wf<- workflow()%>% 
   add_model(lm_spec)%>%
