@@ -15,6 +15,7 @@ library(broom)
 library(ggplot2)
 library(tidymodels)
 tidymodels_prefer()
+library(tibble)
 
 pitching1 = read.csv("stats.csv")
 
@@ -22,6 +23,7 @@ pitching1 = read.csv("stats.csv")
 
 ```
 
+In this section, we are fitting a generalized additive model to account for non-linearity in a regression framework for this data.
 ```{r}
 pitching_data <- pitching1 %>%
   select(c(1,2,7,34,35,36,118:138)) %>%
@@ -37,7 +39,7 @@ gam_spec <-
 fit_gam_model <- gam_spec %>%
   fit(p_k_percent ~ s(pitch_count_offspeed) + s(pitch_count_fastball) + s(pitch_count_breaking) + s(fastball_avg_speed) + s(fastball_avg_spin) + s(fastball_avg_break_x) + s(fastball_avg_break_z) + s(fastball_avg_break) + s(fastball_range_speed) + s(offspeed_avg_speed) + s(offspeed_avg_spin) + s(offspeed_avg_break_x) + s(offspeed_avg_break_z) + s(offspeed_avg_break) + s(offspeed_range_speed) + s(breaking_avg_speed) + s(breaking_avg_spin) + s(breaking_avg_break_x) + s(breaking_avg_break_z) + s(breaking_avg_break) + s(breaking_range_speed), data = pitching_data)
 ```
-
+When deciding the number of knots, the plots show that the default number of knots is satisfactory for all variables. In the residuals vs. theoretical quantities plot, the values stay close to the line, indicating that there is approximately a normal distribution. There is also no real pattern in the residuals vs. linear predictors, and the histogram looks like a somewhat normal distribution. We also observe a clear positive trend with the response vs. fitted values, so this model somewhat predicts accurately. 
 ```{r}
 # check to see if number of knots is good
 par(mfrow=c(2,2))
@@ -47,16 +49,12 @@ fit_gam_model %>% pluck('fit') %>% mgcv::gam.check()
 # summary
 fit_gam_model %>% pluck('fit') %>% summary()
 ```
-Non-significant Coefficients: pcoff, pcfb, fbavgspd, fbavgbrkx, offavgspin, anything breaking - can be fixed
-
-The coefficients with and exsimated degree of freedom of 1 have linear relationship. 
+However, there are many variables where splines may not apply. Variables such as offspeed_avg_speed and fastball_avg_speed have an edf value of 1.000, indicating linearity. Also other variables such as pitch_count_offspeed have high p-values, indicating that their splines are not satisfactory or significant enough to include in the model - they might have better predictive capabilities as a linear coefficient.
 
 ```{r}
 fit_gam_model %>% pluck('fit') %>% plot( all.terms = TRUE, pages = 3)
-
 ```
-Variables we want to fit to linear model. fastball_avg_speed, fastball_range-speed, offspeed_avg_speed, offspeed_avg_spin. 
-Below we are creating a model that includes both splines and linear relationships with each variable 
+These plots are another indication of which variables are better used as splines compared to linear models for the predictor. By showing the shape of the predictor, we can visually show which predictors have more curvature and are better fits for spline models due to their nonlinearity.
 ```{r}
 lm_spec <-
  linear_reg() %>%
@@ -76,6 +74,61 @@ spline_rec <- pitching_rec %>%
   step_ns(offspeed_avg_break_x, deg_free=4)%>% 
   step_ns(offspeed_range_speed, deg_free=4)%>% 
   step_ns(breaking_range_speed,deg_free=4)
+
+pitching_wf<- workflow()%>% 
+  add_model(lm_spec)%>%
+  add_recipe(pitching_rec)
+
+spline_wf<- workflow()%>% 
+  add_model(lm_spec)%>%
+  add_recipe(spline_rec)
+
+fit_resamples(
+  pitching_wf, 
+  resamples=data_cv10,
+  metrics=metric_set(mae,rmse,rsq)
+)%>% collect_metrics() 
+
+fit_resamples(
+  spline_wf, 
+  resamples=data_cv10,
+  metrics=metric_set(mae,rmse,rsq)
+)%>% collect_metrics() 
+```
+Ultimately, by selectively using splines for predictors with an edf of three or greater, our model performs better than an OLS model while using cross-validation to not overfit the model to the data. Comparatively, the GAM model has lower maes and rmses than the OLS model of 2.8 and 3.59 compared to 3.05 and 3.84. It also has a better r-squared of .567 compared to .511, so all of the chosen metrics indicate that accounting for non-linearity is constructive in this context, even though only above 50% of the variation is explained.
+Non-significant Coefficients: pcoff, pcfb, fbavgspd, fbavgbrkx, offavgspin, anything breaking - can be fixed
+
+The coefficients with and exsimated degree of freedom of 1 have linear relationship. 
+
+```{r}
+fit_gam_model %>% pluck('fit') %>% plot( all.terms = TRUE, pages = 3)
+
+```
+Variables we want to fit to linear model. fastball_avg_speed, fastball_range-speed, offspeed_avg_speed, offspeed_avg_spin. 
+Below we are creating a model that includes both splines and linear relationships with each variable 
+```{r}
+lm_spec <-
+ linear_reg() %>%
+ set_engine(engine = 'lm') %>%
+ set_mode('regression')
+
+set.seed(34) 
+
+data_cv10 <- pitching_data %>%
+ vfold_cv(v = 10)
+
+data_cv17 <- pitching_data%>%
+ vfold_cv(v = 17)
+
+pitching_rec <- recipe(p_k_percent ~ pitch_count_offspeed+ pitch_count_fastball + pitch_count_breaking + fastball_avg_speed + fastball_avg_spin + fastball_avg_break_x + fastball_avg_break_z + fastball_avg_break + fastball_range_speed + offspeed_avg_speed + offspeed_avg_spin + offspeed_avg_break_x + offspeed_avg_break_z + offspeed_avg_break + offspeed_range_speed + breaking_avg_speed + breaking_avg_spin + breaking_avg_break_x + breaking_avg_break_z + breaking_avg_break + breaking_range_speed, data=pitching_data)
+
+# for all variables with edf over 3 we put them into our model as a spline 
+spline_rec <- pitching_rec %>% 
+  step_ns(fastball_avg_break_x, deg_free = 5)%>%
+  step_ns(fastball_avg_break_z, deg_free=4)%>% 
+  step_ns(offspeed_avg_break_x, deg_free=4)%>% 
+  step_ns(offspeed_range_speed, deg_free=4)%>% 
+  step_ns(breaking_range_speed, deg_free=4)
 
 pitching_wf<- workflow()%>% 
   add_model(lm_spec)%>%
