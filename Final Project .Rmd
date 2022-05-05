@@ -24,7 +24,6 @@ load("pitching_clean.rdata")
 
 
 ```{r}
-
 pitching1 = read.csv("stats.csv")
 
 
@@ -107,6 +106,9 @@ tune_output <- tune_grid( # new function for tuning hyperparameters
 autoplot(tune_output)+theme_classic()
 ```
 
+MAE and RMSE plotted against the amount of regularization, otherwise known as the LASSO penalty term. These plots show that as the penalty term increases, thus decreasing the amount of predictors, the cross validated error in our model will increase. At a certain point, after a penalty of 1, the error flatlines, meaning all predictors have been eliminated at this point. Our penalty of choice is probably around 0.3. We can confirm this by extracting the best penalty(shown in the code below), but also this is logical because going too low on the penalty will create problems with overfitting and going too high will have high training error. 
+
+
 ```{r}
 #  calculate/collect CV metrics
 pitching_cv_metrics <-fit_resamples(pitcher_wf, 
@@ -127,13 +129,18 @@ final_fit <- fit(final_wf, data = pitching_reg_data)
 
 tidy(final_fit)
 ```
+The OLS model performs somewhat poorly, explaining only 50% of the variance in the data and having high error metrics. While this is not an unusable model, it would be desirable to have better test metrics. Residual plots could lead us to choosing nonlinear models or perhaps using clustering techniques. 
 
+The LASSO output shows the predictors that are included in the final lasso model. The coefficients listed are the result of the LASSO penalty algorithm, where many coefficients are set to 0. This means that the addition of that predictor in the model did not decrease the error enough to justify the inclusion and corresponing increase in the penalty term. 
 ```{r}
 #evaluating with residuals
 pitcher_lasso_output <- final_fit %>%
   predict(new_data = pitching_reg_data)%>%
   bind_cols(pitching_reg_data)%>%
   mutate(resids = p_k_percent - .pred)
+
+pitcher_lasso_output%>%
+  rsq(truth = p_k_percent, estimate = .pred)
 
 pitching_cv_mod <- fit(pitcher_wf, data = pitching_reg_data)
 
@@ -175,7 +182,7 @@ pitcher_cv_output%>%
   theme_classic()
 ```
 
-
+Residual plots from the OLS cross validated model. These plots show generally good residual plots, but the fastball count versus residual plot shows some heteroscedasticity. It seems that there is generally more error at lower numbers of fastball thrown per pitcher. 
 ```{r}
 #residual plots lasso
 
@@ -206,7 +213,10 @@ pitcher_lasso_output%>%
   geom_hline(yintercept = 0, color = "red")+
   theme_classic()
 ```
+The residual plots for the LASSO regression show a similar trend, with a slightly tighter fit and higher R^2 than the normal ols model. 
 
+
+From this point, we think that testing nonlinear or classification model to decrease error is the best course of action. While the linear regressino models are not useless, the error estimates are simply too high for them to be legitimate predictive models that can be used in the future. 
 
 
 
