@@ -346,6 +346,9 @@ logistic_output %>%
 
 ##Descision Trees/Random Forests
 ### Question: Predciting Strikeout precentage over 25% with random forests and decsions trees. 
+=======
+##Decision Trees/Random Forests 
+>>>>>>> cc214bdae489cf23ea7eb757e47a915a44c14e0c
 
 ```{r}
 set.seed(123)
