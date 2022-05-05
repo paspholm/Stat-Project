@@ -22,17 +22,6 @@ load("pitching_clean.rdata")
 
 ## LASSO OLS Model 
 
-```{r}
-pitching = read.csv("stats.csv")
-
-
-pitching_clean = pitching %>%
-  select(-c(118:139))
-  
-  
-pitching_clean[is.na(pitching_clean)]<- 0
-```
-
 
 ```{r}
 set.seed(123)
@@ -119,17 +108,7 @@ Season_CV_metrics
 
 ## GAMS and Splines NEED TO DO 
 ## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
-```{r}
-pitching_clean = pitching_clean %>%
-  mutate(over25kperc = factor(ifelse(p_k_percent > 25, 1, 0)))
 
-pitching_clean = pitching_clean[c(1,2,61:118)]
-pitching_clean = pitching_clean %>%
-  select(!contains("formatted"))%>%
-  select(!contains("range"))
-
-pitching_clean_rf <- subset(pitching_clean, select = -c(1:4))
-```
 
 ```{r}
 set.seed(69)
