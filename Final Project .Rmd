@@ -20,6 +20,14 @@ conflicted::conflict_prefer("vi", "vip")
 load("pitching_clean.rdata")
 ```
 
+## Data Context
+
+Baseball is a sport that has been taken over by analytics. In recent year, new technologies have been able to track and quantify much of the action taking place on the field. This has given statisticians unprecedented access to explore how the sport works and how individuals are performing. 
+
+We will analyze physical pitching metrics taken from Baseball Savant, which is an MLB run database containing all data collected by Statcast. Statcast collects physical measurements, such as pitch speed and exit velocity for example, during each event of each MLB game during the span The data was collected during 2017 to 2021 seasons.
+
+Our final dataframe used for all analysis contains a summary of the pitches thrown by an individual pitcher for each season. It contains the total count of each fastball, offspeed, and breaking ball pitches. Each pich type has metrics explaining the average spin, horizontal break, vertical break, overall break, velocity, and range of the velocity. 
+
 ## LASSO OLS Model 
 
 
@@ -412,6 +420,7 @@ model_output %>% vip::vi() %>% tail()
 ```
 
 The most important variables in our model are the average speed,  spin, and break rate of a pitcher's fastball. This makes sense because this is a pitch that all pitchers typically use, and is important for pitchers who try to generate strikeouts by throwing the ball past the batter instead of trying to generate soft contact and ground balls.
+
 ## Clustering 
 
 
