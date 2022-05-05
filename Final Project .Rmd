@@ -24,8 +24,21 @@ load("pitching_clean.rdata")
 
 
 ```{r}
+
+pitching1 = read.csv("stats.csv")
+
+
+pitching_reg_data <- pitching1 %>%
+  select(c(1,2,7,34,35,36,118:138)) %>%
+  select(-c(1,2)) %>%
+  select(!contains("formatted")) %>%
+  drop_na()
+```
+
+
+```{r}
 set.seed(123)
-pitching_cv_11 <- vfold_cv(pitching_clean, v = 11)
+pitching_cv_10 <- vfold_cv(pitching_reg_data, v = 10)
 ```
 
 ```{r}
@@ -45,17 +58,17 @@ lm_lasso_spec <-
 
 ```{r}
 # recipes & workflows OLS
-season_rec <- recipe(p_k_percent ~ ., data = pitching_clean) %>%
+pitcher_rec <- recipe(p_k_percent ~ ., data = pitching_reg_data) %>%
   step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
   step_nzv(all_numeric_predictors())#remove predictors with near zero variablility
 
-season_model_wf <- workflow() %>%
-  add_recipe(season_rec)%>%
+pitcher_wf <- workflow() %>%
+  add_recipe(pitcher_rec)%>%
   add_model(lm_spec)
 
 #recipe and workflow for LASSO
-season_rec_LASSO <-
-  recipe(p_k_percent ~ ., data = pitching_clean) %>%
+pitcher_rec_LASSO <-
+  recipe(p_k_percent ~ ., data = pitching_reg_data) %>%
   step_lincomb(all_numeric_predictors())%>% #remove predictors that are combinations of each other
   step_nzv(all_numeric_predictors())%>%#remove predictors with near zero variablility
   step_normalize(all_numeric_predictors())%>%#normalize all predictors 
@@ -63,7 +76,7 @@ season_rec_LASSO <-
 
 
 # Lasso Model Spec with tune
-lm_lasso_spec_tune <- 
+pitcher_wf_LASSO <- 
   linear_reg() %>%
   set_args(mixture = 1, penalty = tune()) %>% ## mixture = 1 indicates Lasso
   set_engine(engine = 'glmnet') %>% #note we are using a different engine
@@ -76,8 +89,8 @@ lm_lasso_spec_tune <-
 
 # Workflow (Recipe + Model)
 lasso_wf_tune <- workflow() %>% 
-  add_recipe(season_rec_LASSO) %>%
-  add_model(lm_lasso_spec_tune) 
+  add_recipe(pitcher_rec_LASSO) %>%
+  add_model(pitcher_wf_LASSO) 
 
 # Tune Model (trying a variety of values of Lambda penalty)
 penalty_grid <- grid_regular(
@@ -86,25 +99,116 @@ penalty_grid <- grid_regular(
 
 tune_output <- tune_grid( # new function for tuning hyperparameters
   lasso_wf_tune, # workflow
-  resamples = pitching_cv_11, # cv folds
+  resamples = pitching_cv_10, # cv folds
   metrics = metric_set(rmse, mae),
   grid = penalty_grid # penalty grid defined above
 )
 
-autoplot(tune_output) ### this isn't working 
-+theme_classic()
+autoplot(tune_output)+theme_classic()
 ```
 
 ```{r}
 #  calculate/collect CV metrics
-Season_CV_metrics <-fit_resamples(season_model_wf, 
-    resamples = pitching_cv_11, 
-    metrics = metric_set(rmse, rsq, mae)
+pitching_cv_metrics <-fit_resamples(pitcher_wf, 
+    resamples = pitching_cv_10, 
+    metrics = metric_set(rmse,rsq, mae)
     ) %>%
     collect_metrics(summarize = TRUE) #CV Metrics (averages over the 10 folds)
 
-Season_CV_metrics
+pitching_cv_metrics
+
+#lasso metrics
+
+best_se_penalty <- select_by_one_std_err(tune_output, metric = 'mae', desc(penalty))
+
+final_wf<- finalize_workflow(lasso_wf_tune, best_se_penalty)
+
+final_fit <- fit(final_wf, data = pitching_reg_data)
+
+tidy(final_fit)
 ```
+
+```{r}
+#evaluating with residuals
+pitcher_lasso_output <- final_fit %>%
+  predict(new_data = pitching_reg_data)%>%
+  bind_cols(pitching_reg_data)%>%
+  mutate(resids = p_k_percent - .pred)
+
+pitching_cv_mod <- fit(pitcher_wf, data = pitching_reg_data)
+
+pitcher_cv_output <- pitching_cv_mod %>%
+  predict(new_data = pitching_reg_data)%>%
+  bind_cols(pitching_reg_data)%>%
+  mutate(resids = p_k_percent - .pred)
+
+
+```
+
+```{r}
+#residual plots OLS
+ggplot(data = pitcher_cv_output, aes(x = p_k_percent, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+  
+pitcher_cv_output%>%
+  ggplot(aes(x = fastball_avg_spin, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+
+pitcher_cv_output%>%
+  ggplot(aes(x = pitch_count_fastball, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+
+pitcher_cv_output%>%
+  ggplot(aes(x = fastball_avg_speed, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+```
+
+
+```{r}
+#residual plots lasso
+
+  ggplot(data = pitcher_lasso_output, aes(x = p_k_percent, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+  
+pitcher_lasso_output%>%
+  ggplot(aes(x = fastball_avg_spin, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+
+pitcher_lasso_output%>%
+  ggplot(aes(x = pitch_count_fastball, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+
+pitcher_lasso_output%>%
+  ggplot(aes(x = fastball_avg_speed, y = resids))+
+  geom_point()+
+  geom_smooth(method = 'lm')+ 
+  geom_hline(yintercept = 0, color = "red")+
+  theme_classic()
+```
+
+
+
 
 ## GAMS and Splines NEED TO DO 
 ## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
@@ -244,7 +348,7 @@ data_wf_mtry10 <- workflow() %>%
   add_model(rf_spec %>% set_args(mtry = 10))%>%
   add_recipe(data_rec)
 ```
-Our sensitivity is .685 and our specificity is .934. Therefore, our model is better at predicting when pitchers are below a 25% strikeout rate than above a 25% strikeout rate - it is better at predicting true negatives than true positives. We think this might be happening because pitchers that have a strikeout rate above 25% are very hard to come by - they are a somewhat elite group, even though the statistic is only slightly above the mlb average. Additionally, our data does not include relief pitchers, who tend to rely more on striking batters out than starting pitchers, who might rely on generating ground balls and soft contact.
+
 ```{r}
 # fit model
 set.seed(123)
@@ -269,5 +373,5 @@ data_rf_OOB_output <- bind_rows(
 data_rf_OOB_output %>% 
   accuracy(truth = class, estimate = .pred_class) 
 ```
-The most important variables in our model are the average speed,  spin, and break rate of a pitcher's fastball. This makes sense because this is a pitch that all pitchers typically use, and is important for pitchers who try to generate strikeouts by throwing the ball past the batter instead of trying to generate soft contact and ground balls.
+
 ## Clustering 
