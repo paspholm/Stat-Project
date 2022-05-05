@@ -414,3 +414,91 @@ model_output %>% vip::vi() %>% tail()
 The most important variables in our model are the average speed,  spin, and break rate of a pitcher's fastball. This makes sense because this is a pitch that all pitchers typically use, and is important for pitchers who try to generate strikeouts by throwing the ball past the batter instead of trying to generate soft contact and ground balls.
 
 ## Clustering 
+
+
+Our goal with clustering is to use fastball pitching data to better explore the pitch and see if there are different types of fastballs. 
+
+Our first step is to create a new dataframe containing only fastball data. Once that is done, we cluster from k = 1 to k = 15 to decide which k value to use.
+
+```{r}
+pitching_clean_cluster = pitching_clean %>%
+  select(fastball_avg_spin, fastball_avg_speed, fastball_avg_break_x, fastball_avg_break_z)
+
+pitching_cluster <- function(k){
+    # Perform clustering
+    kclust <- kmeans(scale(pitching_clean_cluster), centers = k)
+
+    # Return the total within-cluster sum of squares
+    return(kclust$tot.withinss)
+}
+
+tibble(
+    k = 1:15,
+    tot_wc_ss = purrr::map_dbl(1:15, pitching_cluster)
+) %>% 
+    ggplot(aes(x = k, y = tot_wc_ss)) +
+    geom_point() + 
+    labs(x = "Number of clusters",y = 'Total within-cluster sum of squares') + 
+    theme_classic()
+```
+
+Using the elbow method, we choose k = 3 as our number of clusters. We choose this because the total within-cluster sum of squares drop off begins to level out after 3.
+
+```{r}
+set.seed(123)
+kclust_k6 = kmeans(scale(pitching_clean_cluster), centers = 3)
+```
+
+```{r}
+pitching_clean_cluster %>%
+  ggplot(aes(x = fastball_avg_break_x, y = fastball_avg_spin, color = as.factor(kclust_k6$cluster))) +
+  geom_point() +
+  xlab("Fastball Average Horizontal Break (Inches)") +
+  ylab("Fastball Average Spin (RPM)") +
+  labs(color = "Cluster") + 
+  theme_classic()
+```
+
+We first plot the average spin of the fastball vs the average horizontal break while coloring by cluster. We can see two clear clusters in this plot, pitches with break greater than 0, and pitches with break less than 0. Within each group the spin varies. This shows us that spin does not have a large effect on horizontal break, and that most pitchers' fastball move vertically, with very little pitchers located around 0 horizontal break. This plot motivates a deeper dive into the data as we see that cluster 2 and 3 are on top of eachother. 
+
+```{r}
+
+pitching_clean_cluster %>%
+  ggplot(aes(x = fastball_avg_break_z, y = fastball_avg_spin, color = as.factor(kclust_k6$cluster))) +
+  geom_point() +
+  xlab("Fastball Average Vertical Break (Inches)") +
+  ylab("Fastball Average Spin (RPM)") +
+  labs(color = "Cluster") +
+  theme_classic()
+```
+
+Our next plot shows average spin vs the average vertical break. We see a better grouping of the clusters. With group 3 having a larger horizontal break, group 1 being more in the middle, and group 2 having the lowest vertical break. This is interesting because we see a clear difference between groups 2 and 3 in this plot. Group 3 has more vertical break whereas group 2 has the least vertical break.
+
+```{r}
+
+pitching_clean_cluster %>%
+  ggplot(aes(x = fastball_avg_speed, y = fastball_avg_spin, color = as.factor(kclust_k6$cluster))) + 
+  geom_point() +
+  xlab("Fastball Average Speed (MPH)") +
+  ylab("Fastball Average Spin (RPM)") +
+  labs(color = "Cluster") +
+  theme_classic()
+
+```
+
+Our next graphic plots average spin with speed to see if we can see a clear clustering based on spin and speed. We see a similar result as the previous graph. Group 3 throws the hardest fastballs, followed by group 1, and group 2 being the slowest. We again see another interesting distinction between group 3 and group 2. Group 3 has both a higher average speed and vertical break whereas group 2 has the slowest average fastball and smallest vertical break.
+
+```{r}
+
+pitching_clean_cluster %>%
+  ggplot(aes(x = fastball_avg_break_x, fastball_avg_break_z, color = as.factor(kclust_k6$cluster))) + 
+  geom_point() + 
+  xlab("Fastball Average Horizontal Break (Inches)") +
+  ylab("Fastball Average Vertical Break (Inches)") +
+  labs(color = "Cluster") +
+  theme_classic()
+```
+
+Our final plot shows a distinct 3 groups. Group 3 is has both a high vertical break and low horizontal break, group 2 has both low vertical and horizontal break, and group 1 has a high horizontal break. 
+
+We can see that there are in fact 3 distinct types of fastball contained in our data. This corresponds with the type of pitches pitchers throw. Group 3 is the traditional 4-seam fastball which is thrown harder with more vertical break. Group 2 is a 2-seam/sinker which is thrown with more horizontal break but less speed. And group 1 is the cutter, which can range in velocities but moves in teh opposite direction of the 4-seam or 2-seam. 
