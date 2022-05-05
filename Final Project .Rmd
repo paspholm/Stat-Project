@@ -40,6 +40,8 @@ set.seed(123)
 pitching_cv_10 <- vfold_cv(pitching_reg_data, v = 10)
 ```
 
+## Research question for OLS and LASSO linear regression: we are trying to predict strikeout percentage for a pitcher based on only pitch movement, spin and velocity. 
+
 ```{r}
 #ols  
 lm_spec <- 
@@ -183,6 +185,7 @@ pitcher_cv_output%>%
 ```
 
 Residual plots from the OLS cross validated model. These plots show generally good residual plots, but the fastball count versus residual plot shows some heteroscedasticity. It seems that there is generally more error at lower numbers of fastball thrown per pitcher. 
+
 ```{r}
 #residual plots lasso
 
@@ -221,8 +224,7 @@ From this point, we think that testing nonlinear or classification model to decr
 
 
 ## GAMS and Splines NEED TO DO 
-## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
-
+## Research question for Logistic Regression: can we predict whether a pitcher has over or under a certain treshold (25%) strikeout percentage with velocity, movement and spin data? 
 
 ```{r}
 set.seed(69)
@@ -247,7 +249,7 @@ log_lasso_wf = workflow() %>%
 
 # Tune Model
 penalty_grid = grid_regular(
-  penalty(range = c(-5, -2)), 
+  penalty(range = c(-5, 3)), 
   levels = 30
 )
 
@@ -266,6 +268,11 @@ best_se_penalty = select_by_one_std_err(tune_output, metric = "roc_auc", desc(pe
 best_se_penalty
 ```
 
+For the LASSO in logistic regression, we used the ROC AUC metric for variable selection. This shows that as the lasso penalty increases, the AUC decreases. This means that the inclusion of more predictors is good for the model. 
+
+With the LASSO penalty being used, the mean ROC AUC for our models was 0.87. This is metric is very high and indicates that our model is very accurate.
+
+
 ```{r}
 #final fit
 final_fit_se = finalize_workflow(log_lasso_wf, best_se_penalty)%>%
@@ -273,6 +280,8 @@ final_fit_se = finalize_workflow(log_lasso_wf, best_se_penalty)%>%
 
 tidy(final_fit_se)
 ```
+
+The output for our final model with all coefficients and predictors listed with the corresponding cross validated penalty. This shows us what predictors are included in our model. It seems that generally, the predictors are similar to those in the LASSO regression model. However, the performance of logistic regression is much better than our linear regression model. This indicates that our data may perform better under a classification framework rather than regression. 
 
 ```{r}
 #variable importance 
@@ -296,6 +305,7 @@ var_imp_data <- tibble(
 )
 var_imp_data %>% arrange(desc(var_imp))
 ```
+Our variable importance table. This lists, in order, the variables that are most to least influential on our final model. Fastball avg speed and spin are equally the most important variables. This indicates that fastballs that are thrown hard with high spin rates are the biggest predictor of if someone has over 25% strikeout rate. 
 
 ```{r}
 tune_output%>% 
@@ -309,10 +319,12 @@ logistic_output <-  pitching_clean %>%
   bind_cols(predict(final_fit_se, new_data = pitching_clean, type = 'prob')) 
 
 logistic_output%>%
-  ggplot(aes(y = .pred_1, x = over25kperc))+
+  ggplot(aes(y = .pred_0, x = over25kperc))+
   geom_boxplot()+theme_classic()
 
 ```
+We can see the boxplots of our predictions for pitchers over and under 25% strikeout rate. There are a few outliers in the no column, meaning that there is a small group that does not strikeout many batters despite having metrics on their pitches that indicate a high strikeout rate. This could be due many factors, such as poor location, playing in a hitter friendly environment or pitch selection and game calling. 
+
 
 ```{r}
 #hard predicitons
@@ -333,6 +345,41 @@ logistic_output%>%
 logistic_output %>%
   conf_mat(truth = over25kperc, estimate = .pred_class)
 ```
+
+
+```{r}
+#hard predicitons
+logistic_output %>%
+  ggplot(aes(x = over25kperc, y = .pred_0))+
+  geom_boxplot()+
+  geom_hline(yintercept = 0.69, col = "red")+
+  theme_classic()
+
+
+log_metrics <- metric_set(accuracy, sens, yardstick::spec)
+
+logistic_output %>%
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold= 0.65))%>%
+  log_metrics(truth = over25kperc, estimate = .pred_class, event_level = 'second')
+
+logistic_output %>%
+  roc_curve(over25kperc, .pred_0, event_level = 'second')%>%
+  autoplot()
+
+threshold_output <- logistic_output %>%
+  threshold_perf(truth = over25kperc, estimate = .pred_0, threshold = seq(0,1, by=0.01))
+
+threshold_output %>%
+  filter(.metric == "j_index")%>%
+  ggplot(aes(x = .threshold, y = .estimate))+
+  geom_line()+
+  theme_classic()
+
+threshold_output%>%
+  filter(.metric == 'j_index')%>%
+  arrange(desc(.estimate))
+```
+For our final logistic output model making a hard prediction, we use the j_index metric to choose the best threshold level in order to optimize accuracy, specificity and sensitivity. These metrics are output here along with the ROC_AUC graph and the boxplot with our hard prediction line superimposed. Overall, this model performs fairly well but could still be better. To some degree, we believe we are lacking data in certain areas that explain variance in strikout rate. Release height and angle could be important and deception is nearly impossible to account for quantitatively, but is generally accepted as an attribute that certain pitcher have, increasing their ability to strike hitters out. 
 
 
 ##Descision Trees/Random Forests 
