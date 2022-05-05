@@ -216,11 +216,83 @@ pitcher_lasso_output%>%
 The residual plots for the LASSO regression show a similar trend, with a slightly tighter fit and higher R^2 than the normal ols model. 
 
 
-From this point, we think that testing nonlinear or classification model to decrease error is the best course of action. While the linear regressino models are not useless, the error estimates are simply too high for them to be legitimate predictive models that can be used in the future. 
+From this point, we think that testing nonlinear or classification model to decrease error is the best course of action. While the linear regression models are not useless, the error estimates are simply too high for them to be legitimate predictive models that can be used in the future. 
 
 
 
-## GAMS and Splines NEED TO DO 
+## GAMS and Splines
+```{r}
+pitching_data <- pitching1 %>%
+  select(c(1,2,7,34,35,36,118:138)) %>%
+  select(-c(1,2)) %>%
+  select(!contains("formatted")) %>%
+  drop_na()
+
+gam_spec <-
+  gen_additive_mod() %>%
+  set_engine(engine = 'mgcv') %>%
+  set_mode('regression')
+
+fit_gam_model <- gam_spec %>%
+  fit(p_k_percent ~ s(pitch_count_offspeed) + s(pitch_count_fastball) + s(pitch_count_breaking) + s(fastball_avg_speed) + s(fastball_avg_spin) + s(fastball_avg_break_x) + s(fastball_avg_break_z) + s(fastball_avg_break) + s(fastball_range_speed) + s(offspeed_avg_speed) + s(offspeed_avg_spin) + s(offspeed_avg_break_x) + s(offspeed_avg_break_z) + s(offspeed_avg_break) + s(offspeed_range_speed) + s(breaking_avg_speed) + s(breaking_avg_spin) + s(breaking_avg_break_x) + s(breaking_avg_break_z) + s(breaking_avg_break) + s(breaking_range_speed), data = pitching_data)
+```
+In this section, we are fitting a 
+```{r}
+# check to see if number of knots is good
+par(mfrow=c(2,2))
+fit_gam_model %>% pluck('fit') %>% mgcv::gam.check()
+# I think this is good based on the in-class activity
+
+# summary
+fit_gam_model %>% pluck('fit') %>% summary()
+```
+Non-significant Coefficients: pcoff, pcfb, fbavgspd, fbavgbrkx, offavgspin, anything breaking - can be fixed
+
+```{r}
+fit_gam_model %>% pluck('fit') %>% plot( all.terms = TRUE, pages = 3)
+```
+Variables we want to fit to linear model. fastball_avg_speed, fastball_range-speed, offspeed_avg_speed, offspeed_avg_spin. 
+Below we are creating a model that includes both splines and linear relationships with each variable 
+```{r}
+lm_spec <-
+ linear_reg() %>%
+ set_engine(engine = 'lm') %>%
+ set_mode('regression')
+
+set.seed(34) 
+data_cv10 <- pitching_data %>%
+ vfold_cv(v = 10)
+
+pitching_rec <- recipe(p_k_percent ~ pitch_count_offspeed+ pitch_count_fastball + pitch_count_breaking + fastball_avg_speed + fastball_avg_spin + fastball_avg_break_x + fastball_avg_break_z + fastball_avg_break + fastball_range_speed + offspeed_avg_speed + offspeed_avg_spin + offspeed_avg_break_x + offspeed_avg_break_z + offspeed_avg_break + offspeed_range_speed + breaking_avg_speed + breaking_avg_spin + breaking_avg_break_x + breaking_avg_break_z + breaking_avg_break + breaking_range_speed, data=pitching_data)
+
+# for all variables with edf over 3 we put them into our model as a spline 
+spline_rec <- pitching_rec %>% 
+  step_ns(fastball_avg_break_x, deg_free = 5)%>%
+  step_ns(fastball_avg_break_z, deg_free=4)%>% 
+  step_ns(offspeed_avg_break_x, deg_free=4)%>% 
+  step_ns(offspeed_range_speed, deg_free=4)%>% 
+  step_ns(breaking_range_speed,deg_free=4)
+
+pitching_wf<- workflow()%>% 
+  add_model(lm_spec)%>%
+  add_recipe(pitching_rec)
+
+spline_wf<- workflow()%>% 
+  add_model(lm_spec)%>%
+  add_recipe(spline_rec)
+
+fit_resamples(
+  pitching_wf, 
+  resamples=data_cv10,
+  metrics=metric_set(mae,rmse,rsq)
+)%>% collect_metrics() 
+
+fit_resamples(
+  spline_wf, 
+  resamples=data_cv10,
+  metrics=metric_set(mae,rmse,rsq)
+)%>% collect_metrics() 
+```
 ## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
 
 
