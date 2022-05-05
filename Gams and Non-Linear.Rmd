@@ -19,7 +19,7 @@ tidymodels_prefer()
 pitching1 = read.csv("stats.csv")
 
 
-pitching_classclean <- pitching1 %>%
+pitching_data <- pitching1 %>%
   select(c(1,2,7,34,35,36,118:138)) %>%
   select(-c(1,2)) %>%
   select(!contains("formatted")) %>%
@@ -33,7 +33,7 @@ gam_spec <-
   set_mode('regression')
 
 fit_gam_model <- gam_spec %>%
-  fit(p_k_percent ~ s(pitch_count_offspeed) + s(pitch_count_fastball) + s(pitch_count_breaking) + s(fastball_avg_speed) + s(fastball_avg_spin) + s(fastball_avg_break_x) + s(fastball_avg_break_z) + s(fastball_avg_break) + s(fastball_range_speed) + s(offspeed_avg_speed) + s(offspeed_avg_spin) + s(offspeed_avg_break_x) + s(offspeed_avg_break_z) + s(offspeed_avg_break) + s(offspeed_range_speed) + s(breaking_avg_speed) + s(breaking_avg_spin) + s(breaking_avg_break_x) + s(breaking_avg_break_z) + s(breaking_avg_break) + s(breaking_range_speed), data = pitching_classclean)
+  fit(p_k_percent ~ s(pitch_count_offspeed) + s(pitch_count_fastball) + s(pitch_count_breaking) + s(fastball_avg_speed) + s(fastball_avg_spin) + s(fastball_avg_break_x) + s(fastball_avg_break_z) + s(fastball_avg_break) + s(fastball_range_speed) + s(offspeed_avg_speed) + s(offspeed_avg_spin) + s(offspeed_avg_break_x) + s(offspeed_avg_break_z) + s(offspeed_avg_break) + s(offspeed_range_speed) + s(breaking_avg_speed) + s(breaking_avg_spin) + s(breaking_avg_break_x) + s(breaking_avg_break_z) + s(breaking_avg_break) + s(breaking_range_speed), data = pitching_data)
 ```
 
 ```{r}
