@@ -21,7 +21,7 @@ load("pitching_clean.rdata")
 ```
 
 ## LASSO OLS Model 
-
+Can we predict strikeout rate with normal linear regression and LASSO variable selection using pitch movement and type metrics? 
 
 ```{r}
 pitching1 = read.csv("stats.csv")
@@ -129,7 +129,7 @@ final_fit <- fit(final_wf, data = pitching_reg_data)
 
 tidy(final_fit)
 ```
-The OLS model performs somewhat poorly, explaining only 50% of the variance in the data and having high error metrics. While this is not an unusable model, it would be desirable to have better test metrics. Residual plots could lead us to choosing nonlinear models or perhaps using clustering techniques. 
+The OLS model performs somewhat poorly, explaining only 50% of the variance in the data and has high error metrics. While this is not an unusable model, it would be desirable to have better test metrics. Residual plots could lead us to choosing nonlinear models or perhaps using clustering techniques. 
 
 The LASSO output shows the predictors that are included in the final lasso model. The coefficients listed are the result of the LASSO penalty algorithm, where many coefficients are set to 0. This means that the addition of that predictor in the model did not decrease the error enough to justify the inclusion and corresponing increase in the penalty term. 
 ```{r}
@@ -148,8 +148,6 @@ pitcher_cv_output <- pitching_cv_mod %>%
   predict(new_data = pitching_reg_data)%>%
   bind_cols(pitching_reg_data)%>%
   mutate(resids = p_k_percent - .pred)
-
-
 ```
 
 ```{r}
@@ -183,6 +181,7 @@ pitcher_cv_output%>%
 ```
 
 Residual plots from the OLS cross validated model. These plots show generally good residual plots, but the fastball count versus residual plot shows some heteroscedasticity. It seems that there is generally more error at lower numbers of fastball thrown per pitcher. 
+
 ```{r}
 #residual plots lasso
 
@@ -297,13 +296,10 @@ fit_resamples(
 Ultimately, by selectively using splines for predictors with an edf of three or greater, our model performs better than an OLS model while using cross-validation to not overfit the model to the data. Comparatively, the GAM model has lower maes and rmses than the OLS model of 2.8 and 3.59 compared to 3.05 and 3.84. It also has a better r-squared of .567 compared to .511, so all of the chosen metrics indicate that accounting for non-linearity is constructive in this context, even though only above 50% of the variation is explained.
 
 
-## Logistic Regression: Question can we predict strikeout percentage with pitching metrics?  
 =======
 
 
 ## Logistic Regression: Question: can we predict strikeout percentage with pitching metrics?  
-
-
 
 ```{r}
 set.seed(69)
@@ -328,7 +324,7 @@ log_lasso_wf = workflow() %>%
 
 # Tune Model
 penalty_grid = grid_regular(
-  penalty(range = c(-5, -2)), 
+  penalty(range = c(-5, 0)), 
   levels = 30
 )
 
@@ -346,6 +342,7 @@ best_se_penalty = select_by_one_std_err(tune_output, metric = "roc_auc", desc(pe
 
 best_se_penalty
 ```
+The output from the LASSO variable selection algorithm shows a curve that plots the penalty term for predictor coefficient against the ROC AUC. We can tell that after the penalty term passes a certain point, the AUC drops to 0.5, meaning that all predictors are eliminated. The best penalty is 0.018, associated with a 0.87 AUC. This is a very strong predictive model. An AUC of over 0.8 is usually considered a good model. 
 
 ```{r}
 #final fit
@@ -354,6 +351,7 @@ final_fit_se = finalize_workflow(log_lasso_wf, best_se_penalty)%>%
 
 tidy(final_fit_se)
 ```
+Where the estimate is 0, this means that the LASSO algorithm has entirely eliminated that variable from the model. We can see that fastball spin and speed are important and positively related to strikeout rate, meaning that a fastball that spins more and is faster is a strong sign of a high strikeout rate. 
 
 ```{r}
 #variable importance 
@@ -377,6 +375,7 @@ var_imp_data <- tibble(
 )
 var_imp_data %>% arrange(desc(var_imp))
 ```
+Variable importance for all predictors. This shows which predictors are the strongest in order. As we already discussed, fastball spin and speed are good predictors of strikeout rate, 
 
 ```{r}
 tune_output%>% 
@@ -390,30 +389,47 @@ logistic_output <-  pitching_clean %>%
   bind_cols(predict(final_fit_se, new_data = pitching_clean, type = 'prob')) 
 
 logistic_output%>%
-  ggplot(aes(y = .pred_1, x = over25kperc))+
+  ggplot(aes(y = .pred_0, x = over25kperc))+
   geom_boxplot()+theme_classic()
 
 ```
+There is a clear division between groups of pitchers that have over 25% strikeout rate. However, there is a small but significant group of pitchers that our model predicts will have over 25% strikeout rate despite this not being the case. This could be due to pitch location, pitchers who play in hitter friendly parks, pitch selection, catcher framing or individual traits each pitcher has that do not allow for them to reach their high strikeout potential. A team might look at this and if they had one of the players that was predicted to be a high strikeout pitcher, might want to diagnose the issue leading to underperformance. 
 
 ```{r}
 #hard predicitons
+log_metrics <- metric_set(accuracy, sens, yardstick::spec)
+
+logistic_output %>%
+  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold= 0.64))%>%
+  log_metrics(truth = over25kperc, estimate = .pred_class, event_level = 'second')
+
+logistic_output %>%
+  roc_curve(over25kperc, .pred_0, event_level = 'second')%>%
+  autoplot()
+
+threshold_output <- logistic_output %>%
+  threshold_perf(truth = over25kperc, estimate = .pred_0, threshold = seq(0,1, by=0.01))
+
+threshold_output %>%
+  filter(.metric == "j_index")%>%
+  ggplot(aes(x = .threshold, y = .estimate))+
+  geom_line()+
+  theme_classic()
+
+threshold_output%>%
+  filter(.metric == 'j_index')%>%
+  arrange(desc(.estimate))
+
 logistic_output %>%
   ggplot(aes(x = over25kperc, y = .pred_0))+
   geom_boxplot()+
-  geom_hline(yintercept = 0.69, col = "red")+
+  geom_hline(yintercept = 0.64, col = "red")+
   theme_classic()
-
-logistic_output<-logistic_output%>%
-  mutate(.pred_class = make_two_class_pred(.pred_0, levels(over25kperc), threshold = .69))
-  
-head(logistic_output)
-
-logistic_output%>%
-  count(over25kperc, .pred_class)
-
-logistic_output %>%
-  conf_mat(truth = over25kperc, estimate = .pred_class)
 ```
+We made hard predictions for our model by choosing a threshold using the j index metric for best threshold selection. THis maximizes our accuracy, sensitivty and specificity. Accuracy is 0.82, sensitivity is 0.84 and specificity is 0.82. This means that our model is better at predicting when a pitcher does not have a high strikeout rate than predicting if they do have a high strikeout rate. This output also includes the ROC curve, which has a 
+AUC of 0.87. 
+
+Overall, this model performs fairly well and is a good predictor of when pitchers will have over a 25% strikeout rate. 25% was chosen because it is league average. We also learn that a high spin rate, high velocity fastball is the best predictor of having over 25% strikeout rate (and the opposite is also true - low spin rate, slow fastballs would be associated with having a low strikeout rate.)
 
 
 ##Decision Trees/Random Forests 
@@ -584,4 +600,4 @@ pitching_clean_cluster %>%
 
 Our final plot shows a distinct 3 groups. Group 3 is has both a high vertical break and low horizontal break, group 2 has both low vertical and horizontal break, and group 1 has a high horizontal break. 
 
-We can see that there are in fact 3 distinct types of fastball contained in our data. This corresponds with the type of pitches pitchers throw. Group 3 is the traditional 4-seam fastball which is thrown harder with more vertical break. Group 2 is a 2-seam/sinker which is thrown with more horizontal break but less speed. And group 1 is the cutter, which can range in velocities but moves in teh opposite direction of the 4-seam or 2-seam. 
+We can see that there are in fact 3 distinct types of fastball contained in our data. This corresponds with the type of pitches pitchers throw. Group 3 is the traditional 4-seam fastball which is thrown harder with more vertical break. Group 2 is a 2-seam/sinker which is thrown with more horizontal break but less speed. And group 1 is the cutter, which can range in velocities but moves in the opposite direction of the 4-seam or 2-seam. 
